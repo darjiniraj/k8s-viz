@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@layer components {
+  /* Main Layout Shell */
+  .app-shell {
+    @apply flex flex-col h-screen bg-[#0f172a] text-[#94a3b8] font-sans overflow-hidden;
+  }
+
+  /* Header Section */
+  .app-header {
+    @apply flex items-center justify-between px-8 py-4 bg-[#1e293b]/50 border-b border-white/5 backdrop-blur-md z-10;
+  }
+
+  .header-brand {
+    @apply flex items-center gap-3 text-white font-bold text-lg tracking-tight;
+  }
+
+  /* Navigation Tabs */
+  .tab-nav {
+    @apply flex p-1 bg-slate-900/50 rounded-xl border border-white/5 ml-10;
+  }
+
+  .tab-button {
+    @apply px-5 py-2 rounded-lg text-xs font-bold transition-all uppercase tracking-wider flex items-center;
+  }
+
+  .tab-button-active {
+    @apply bg-blue-500/10 text-blue-400 shadow-sm ring-1 ring-blue-500/20;
+  }
+
+  .tab-button-inactive {
+    @apply text-slate-500 hover:text-slate-300;
+  }
+
+  /* --- FIXED LAYOUT CLASSES --- */
+  
+  .main-layout {
+    /* Changed py-8 to pb-8 to keep header flush, added flex */
+    @apply flex flex-1 overflow-hidden px-8 pb-8 gap-6 relative;
+  }
+
+  .identity-list-container {
+    /* Changed from w-1/2 to a fixed width to prevent the 'ghost box' gap */
+    @apply w-[480px] shrink-0 overflow-y-auto space-y-3 pr-2;
+  }
+
+  /* ---------------------------- */
+
+  .loading-overlay {
+    @apply absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a]/60 backdrop-blur-md;
+  }
+
+  .spinner {
+    @apply w-12 h-12 border-4 border-white/5 border-t-blue-400 rounded-full animate-spin;
+  }
+
+  /* Custom styling for the Select Dropdown */
+  select {
+    @apply appearance-none bg-slate-900/60 border border-white/10 rounded-2xl px-6 py-3 text-sm text-slate-300 outline-none transition-colors cursor-pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23475569'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1.5rem center;
+    background-size: 1rem;
+  }
+
+  select option {
+    @apply bg-[#1e293b] text-slate-200;
+  }
+
+  select:focus {
+    @apply ring-2 ring-blue-500/20 border-blue-500/40;
+  }
+}
+
+/* Custom Scrollbar Styles */
+.custom-scroll::-webkit-scrollbar { width: 5px; }
+.custom-scroll::-webkit-scrollbar-track { background: transparent; }
+.custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+.custom-scroll::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* Code block cleanups */
+pre {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+pre::-webkit-scrollbar { display: none; }
+
+/* Global Animations */
+.animate-in { animation: fadeIn 0.4s ease-out; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

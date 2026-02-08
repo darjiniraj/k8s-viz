@@ -13,3 +13,17 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+
+
+# Prerequisites
+ui/node_modules/
+ui/dist/
+
+# Build artifacts (if you build the Go binary)
+bin/
+*.exe
+*.test
+
+# Local environment secrets
+.env
+.env.local
