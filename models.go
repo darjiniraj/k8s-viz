@@ -5,11 +5,13 @@ type SecurityRow struct {
 	SA          string `json:"sa"`
 	Namespace   string `json:"namespace"`
 	IAMRole     string `json:"iam_role"`
-	BindingType string `json:"binding_type"`
+	BindingType string `json:"binding_type"` // e.g., "ClusterRoleBinding"
 	BindingName string `json:"binding_name"`
 	BindingYAML string `json:"binding_yaml"`
 	RoleYAML    string `json:"role_yaml"`
-	RoleName    string `json:"role"`
+	RoleName    string `json:"role_name"`
+	RoleKind    string `json:"role_kind"` // "Role" or "ClusterRole"
+	IsGlobal    bool   `json:"is_global"` // For showing the "Cluster-Wide" badge
 }
 
 // YamlBlock is a metadata wrapper for K8s manifests in the Group view.

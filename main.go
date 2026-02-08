@@ -115,24 +115,36 @@ func getSecurityDataHandler(s *K8sService) http.HandlerFunc {
 			}
 		}
 
+
 		// 4. Process ClusterRoleBindings
-		for _, crb := range crbList.Items {
-			bY := s.MarshalToYaml(crb)
-			rY := cRoleMap[crb.RoleRef.Name]
-			for _, sub := range crb.Subjects {
-				if sub.Kind == "ServiceAccount" {
-					iam := iamMap[sub.Namespace+"/"+sub.Name]
-					if iam == "" {
-						iam = "None"
-					}
-					rows = append(rows, SecurityRow{
-						SA: sub.Name, Namespace: sub.Namespace + " (Global)", IAMRole: iam,
-						BindingType: "ClusterRoleBinding", BindingName: crb.Name,
-						BindingYAML: bY, RoleYAML: rY, RoleName: crb.RoleRef.Name,
-					})
-				}
-			}
-		}
+for _, crb := range crbList.Items {
+    bY := s.MarshalToYaml(crb)
+    rY := cRoleMap[crb.RoleRef.Name]
+    
+    for _, sub := range crb.Subjects {
+        if sub.Kind == "ServiceAccount" {
+            iam := iamMap[sub.Namespace+"/"+sub.Name]
+            if iam == "" {
+                iam = "None"
+            }
+
+            // FIX: Use the raw sub.Namespace so the UI filter works.
+            // We add a separate 'IsGlobal' flag for the UI to show the badge.
+            rows = append(rows, SecurityRow{
+                SA:          sub.Name,
+                Namespace:   sub.Namespace, // No more " (Global)" suffix here
+                IAMRole:     iam,
+                BindingType: "ClusterRoleBinding",
+                BindingName: crb.Name,
+                BindingYAML: bY,
+                RoleYAML:    rY,
+                RoleName:    crb.RoleRef.Name,
+                RoleKind:    "ClusterRole", // Add this field to your SecurityRow struct
+                IsGlobal:    true,          // Add this field to your SecurityRow struct
+            })
+        }
+    }
+}
 		// 2. Before responding, Save to Cache (e.g., 10 minutes)
 		appCache.Set(cacheKey, rows, 10*time.Minute)
 

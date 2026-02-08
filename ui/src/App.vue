@@ -33,33 +33,20 @@ const handleTab = (tab) => {
   }
 };
 
-const normalizeNS = (ns) =>
-  ns?.replace(' (Global)', '').trim()
 
 const namespaces = computed(() => {
-  const data = currentTab.value === 'sa'
-    ? saData.value
-    : groupData.value
-
+  const data = currentTab.value === 'sa' ? saData.value : groupData.value
   if (!Array.isArray(data)) return []
 
   const set = new Set()
-
   for (const item of data) {
-    // Service Accounts
-    if (item.namespace) {
-      const ns = item.namespace.replace(' (Global)', '')
-      if (ns) set.add(ns)
-    }
+    if (item.namespace) set.add(item.namespace)
 
     // Groups
     if (Array.isArray(item.namespaces)) {
-      item.namespaces.forEach(ns => {
-        if (ns) set.add(ns)
-      })
+      item.namespaces.forEach(ns => { if (ns) set.add(ns) })
     }
   }
-
   return [...set].sort()
 })
 
@@ -68,7 +55,7 @@ const fetchData = async (refresh = false) => {
   isLoading.value = true;
   try {
     const rawData = await k8sService.fetchTableData(currentTab.value, refresh);
-    
+
     if (currentTab.value === 'sa') {
       // Group SAs by name + namespace so they don't appear as duplicates
       const grouped = rawData.reduce((acc, curr) => {
@@ -85,7 +72,7 @@ const fetchData = async (refresh = false) => {
     } else {
       groupData.value = [...rawData];
     }
-    
+
     lastUpdated.value = new Date().toLocaleTimeString();
   } catch (err) {
     console.error("Fetch failed:", err);
@@ -100,46 +87,6 @@ const refreshData = () => {
 }
 
 
-// const filteredData = computed(() => {
-//   const query = searchQuery.value.toLowerCase().trim()
-//   const ns = namespaceFilter.value
-//   const isSA = currentTab.value === 'sa'
-//   const data = isSA ? saData.value : groupData.value
-
-//   if (!Array.isArray(data)) return []
-
-//   return data.filter(item => {
-//     // ---------- Namespace match ----------
-//     const itemNamespaces = isSA
-//       ? [normalizeNS(item.namespace)]
-//       : (item.namespaces || []).map(normalizeNS)
-
-//     const namespaceMatch =
-//       !ns || itemNamespaces.includes(ns)
-
-//     // ---------- Search match ----------
-//     const searchMatch = !query || (
-//       isSA
-//         ? [
-//           item.sa,
-//           item.role,
-//           item.binding_name,
-//           item.iam_role
-//         ]
-//           .filter(Boolean)
-//           .some(v => v.toLowerCase().includes(query))
-//         : (
-//           (item.group_name || '').toLowerCase().includes(query) ||
-//           (item.roles || []).some(r =>
-//             r.toLowerCase().includes(query)
-//           )
-//         )
-//     )
-
-//     return namespaceMatch && searchMatch
-//   })
-// })
-
 const filteredData = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
   const ns = namespaceFilter.value
@@ -149,20 +96,19 @@ const filteredData = computed(() => {
   if (!Array.isArray(data)) return []
 
   return data.filter(item => {
-    // 1. NAMESPACE GATE: In your JSON, SAs use "namespace", Groups use "namespaces" array
+    // 1. NAMESPACE GATE: Backend now provides exact matches
     const itemNs = isSA ? item.namespace : (item.namespaces || [])
     const matchesNS = !ns || (isSA ? itemNs === ns : itemNs.includes(ns))
-    
+
     if (!matchesNS) return false
 
-    // 2. SEARCH GATE: Only match against what the user actually sees on the card
     if (!query) return true
 
+    // 2. SEARCH GATE: Updated to include role_name and iam_role
     if (isSA) {
-      // ONLY search specific keys. Do NOT search the whole object or YAML keys.
       return (
         (item.sa || '').toLowerCase().includes(query) ||
-        (item.role || '').toLowerCase().includes(query) ||
+        (item.role_name || '').toLowerCase().includes(query) ||
         (item.binding_name || '').toLowerCase().includes(query) ||
         (item.iam_role || '').toLowerCase().includes(query)
       )
@@ -278,14 +224,9 @@ onMounted(() => {
         <!-- <IdentityCard v-for="item in filteredData"
           :key="currentTab + ':' + (item.sa || item.group_name) + ':' + (item.binding_name || '')" :item="item"
           :type="currentTab" :isSelected="selectedItem === item" @select="selectedItem = item" /> -->
-<IdentityCard 
-  v-for="item in filteredData"
-  :key="`${currentTab}-${item.sa || item.group_name}-${item.namespace || 'global'}-${item.binding_name || ''}`" 
-  :item="item"
-  :type="currentTab" 
-  :isSelected="selectedItem === item" 
-  @select="selectedItem = item" 
-/>
+        <IdentityCard v-for="item in filteredData"
+          :key="`${currentTab}-${item.sa || item.group_name}-${item.namespace || 'global'}-${item.binding_name || ''}`"
+          :item="item" :type="currentTab" :isSelected="selectedItem === item" @select="selectedItem = item" />
       </section>
 
       <YamlInspector :item="selectedItem" :isLoading="isLoading" class="flex-1" />
