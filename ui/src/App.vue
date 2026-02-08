@@ -22,17 +22,16 @@ const lastUpdated = ref(new Date().toLocaleTimeString())
 const handleTab = (tab) => {
   if (currentTab.value === tab) return;
 
-  // Clear UI state immediately
   currentTab.value = tab;
   selectedItem.value = null;
   searchQuery.value = '';
   namespaceFilter.value = '';
 
-  // Only fetch if we don't have data yet, otherwise rely on the cache
+  // Check data existence for all three tabs
   const hasData = 
     tab === 'sa' ? saData.value.length > 0 : 
     tab === 'groups' ? groupData.value.length > 0 : 
-    ciliumData.value.length > 0;
+    tab === 'cilium' ? ciliumData.value.length > 0 : false;
 
   if (!hasData) {
     fetchData(false);
@@ -137,38 +136,52 @@ const filteredData = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
   const ns = namespaceFilter.value
   
-  // Data Source Selection
+  // Determine Data Source
   let data = []
   if (currentTab.value === 'sa') data = saData.value
   else if (currentTab.value === 'groups') data = groupData.value
-  else data = ciliumData.value
+  else if (currentTab.value === 'cilium') data = ciliumData.value
 
   if (!Array.isArray(data)) return []
 
   return data.filter(item => {
-    // 1. NAMESPACE FILTERING
-    // Clusterwide policies (item.is_cluster_wide) should usually show in ALL namespace views
-    const isGlobal = item.is_cluster_wide === true;
-    const itemNs = currentTab.value === 'sa' || currentTab.value === 'cilium' ? item.namespace : (item.namespaces || [])
+    // 1. NAMESPACE GATE
+    let matchesNS = false;
     
-    const matchesNS = !ns || isGlobal || (Array.isArray(itemNs) ? itemNs.includes(ns) : itemNs === ns)
-    if (!matchesNS) return false
-
-    if (!query) return true
-
-    // 2. SEARCH FILTERING
     if (currentTab.value === 'sa') {
-      return (item.sa || '').toLowerCase().includes(query) || 
-             (item.role_name || '').toLowerCase().includes(query) ||
-             (item.iam_role || '').toLowerCase().includes(query)
+      matchesNS = !ns || item.namespace === ns;
     } else if (currentTab.value === 'groups') {
-      return (item.group_name || '').toLowerCase().includes(query) || 
-             (item.roles || []).some(r => r.toLowerCase().includes(query))
-    } else {
-      // NEW: Cilium Search logic (Search Name, Kind, or Selector)
-      return (item.name || '').toLowerCase().includes(query) ||
-             (item.kind || '').toLowerCase().includes(query) ||
-             (item.target_selector || '').toLowerCase().includes(query)
+      matchesNS = !ns || (item.namespaces || []).includes(ns);
+    } else if (currentTab.value === 'cilium') {
+      // For Cilium: If filtering by namespace, global policies (no namespace) are excluded
+      // item.namespace will be empty for Cluster-wide policies
+      matchesNS = !ns ? true : item.namespace === ns;
+    }
+
+    if (!matchesNS) return false;
+
+    if (!query) return true;
+
+    // 2. SEARCH GATE
+    if (currentTab.value === 'sa') {
+      return (
+        (item.sa || '').toLowerCase().includes(query) ||
+        (item.role_name || '').toLowerCase().includes(query) ||
+        (item.binding_name || '').toLowerCase().includes(query) ||
+        (item.iam_role || '').toLowerCase().includes(query)
+      )
+    } else if (currentTab.value === 'groups') {
+      return (
+        (item.group_name || '').toLowerCase().includes(query) ||
+        (item.roles || []).some(r => r.toLowerCase().includes(query))
+      )
+    } else if (currentTab.value === 'cilium') {
+      // Search by Policy Name or Target Selector labels
+      return (
+        (item.name || '').toLowerCase().includes(query) ||
+        (item.target_selector || '').toLowerCase().includes(query) ||
+        (item.type || '').toLowerCase().includes(query)
+      )
     }
   })
 })
