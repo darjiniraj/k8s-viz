@@ -22,22 +22,27 @@ const lastUpdated = ref(new Date().toLocaleTimeString())
 const handleTab = (tab) => {
   if (currentTab.value === tab) return;
 
+  // 1. Reset selection and filters immediately
   currentTab.value = tab;
   selectedItem.value = null;
   searchQuery.value = '';
-  namespaceFilter.value = '';
+  namespaceFilter.value = ''; // This fixes the "namespace sticking" issue
 
-  // Check data existence for all three tabs
-  const hasData = 
-    tab === 'sa' ? saData.value.length > 0 : 
-    tab === 'groups' ? groupData.value.length > 0 : 
-    tab === 'cilium' ? ciliumData.value.length > 0 : false;
-
-  if (!hasData) {
-    fetchData(false);
+  // 2. Clear out the data arrays for the tabs we AREN'T using
+  // This prevents the 'filteredData' from seeing old items
+  if (tab === 'sa') {
+    groupData.value = [];
+    ciliumData.value = [];
+  } else if (tab === 'groups') {
+    saData.value = [];
+    ciliumData.value = [];
+  } else if (tab === 'cilium') {
+    saData.value = [];
+    groupData.value = [];
   }
-};
 
+  fetchData(false);
+};
 
 const namespaces = computed(() => {
   let data = []
@@ -136,53 +141,38 @@ const filteredData = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
   const ns = namespaceFilter.value
   
-  // Determine Data Source
+  // SELECT SOURCE BASED ON TAB
   let data = []
   if (currentTab.value === 'sa') data = saData.value
   else if (currentTab.value === 'groups') data = groupData.value
   else if (currentTab.value === 'cilium') data = ciliumData.value
-
-  if (!Array.isArray(data)) return []
+  else return []
 
   return data.filter(item => {
     // 1. NAMESPACE GATE
     let matchesNS = false;
-    
     if (currentTab.value === 'sa') {
       matchesNS = !ns || item.namespace === ns;
     } else if (currentTab.value === 'groups') {
-      matchesNS = !ns || (item.namespaces || []).includes(ns);
+      matchesNS = !ns || (item.namespaces && item.namespaces.includes(ns));
     } else if (currentTab.value === 'cilium') {
-      // For Cilium: If filtering by namespace, global policies (no namespace) are excluded
-      // item.namespace will be empty for Cluster-wide policies
+      // If we are in Cilium, and a namespace is selected, 
+      // ONLY show items that match that namespace (excludes Global)
       matchesNS = !ns ? true : item.namespace === ns;
     }
 
     if (!matchesNS) return false;
 
-    if (!query) return true;
-
     // 2. SEARCH GATE
-    if (currentTab.value === 'sa') {
-      return (
-        (item.sa || '').toLowerCase().includes(query) ||
-        (item.role_name || '').toLowerCase().includes(query) ||
-        (item.binding_name || '').toLowerCase().includes(query) ||
-        (item.iam_role || '').toLowerCase().includes(query)
-      )
-    } else if (currentTab.value === 'groups') {
-      return (
-        (item.group_name || '').toLowerCase().includes(query) ||
-        (item.roles || []).some(r => r.toLowerCase().includes(query))
-      )
-    } else if (currentTab.value === 'cilium') {
-      // Search by Policy Name or Target Selector labels
-      return (
-        (item.name || '').toLowerCase().includes(query) ||
-        (item.target_selector || '').toLowerCase().includes(query) ||
-        (item.type || '').toLowerCase().includes(query)
-      )
-    }
+    if (!query) return true;
+    
+    const searchStr = currentTab.value === 'cilium' 
+      ? `${item.name} ${item.target_selector}`
+      : currentTab.value === 'sa'
+        ? `${item.sa} ${item.role_name} ${item.iam_role}`
+        : `${item.group_name} ${item.roles?.join(' ')}`;
+
+    return searchStr.toLowerCase().includes(query);
   })
 })
 

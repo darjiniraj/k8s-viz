@@ -11,16 +11,12 @@ export const k8sService = {
   //     if (!res.ok) throw new Error(`API Error: ${res.status}`);
   //     return await res.json();
   //   },
-  async fetchTableData(tab, refresh = false) {
-    let endpoint = '/api/table' // default
-    if (tab === 'groups') endpoint = '/api/groups'
-    if (tab === 'cilium') endpoint = '/api/cilium'
-
+async fetchTableData(tab, refresh = false) {
+    const endpoint = tab === 'cilium' ? '/api/cilium' : (tab === 'groups' ? '/api/groups' : '/api/table');
     const url = refresh ? `${endpoint}?refresh=true` : endpoint;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`API Error: ${res.status}`);
     return await res.json();
-  },
+},
 
   downloadExport(data, tabName) {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
