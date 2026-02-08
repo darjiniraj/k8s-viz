@@ -5,12 +5,14 @@ import { k8sService } from './services/k8sService'
 import IdentityCard from './components/IdentityCard.vue'
 import YamlInspector from './components/YamlInspector.vue'
 import { watch } from 'vue';
+import { Network } from 'lucide-vue-next' 
 
 
 
 const currentTab = ref('sa')
 const saData = ref([])
 const groupData = ref([])
+const ciliumData = ref([]) 
 const selectedItem = ref(null)
 const searchQuery = ref('')
 const namespaceFilter = ref('')
@@ -27,7 +29,11 @@ const handleTab = (tab) => {
   namespaceFilter.value = '';
 
   // Only fetch if we don't have data yet, otherwise rely on the cache
-  const hasData = tab === 'sa' ? saData.value.length > 0 : groupData.value.length > 0;
+  const hasData = 
+    tab === 'sa' ? saData.value.length > 0 : 
+    tab === 'groups' ? groupData.value.length > 0 : 
+    ciliumData.value.length > 0;
+
   if (!hasData) {
     fetchData(false);
   }
@@ -35,7 +41,11 @@ const handleTab = (tab) => {
 
 
 const namespaces = computed(() => {
-  const data = currentTab.value === 'sa' ? saData.value : groupData.value
+  let data = []
+  if (currentTab.value === 'sa') data = saData.value
+  else if (currentTab.value === 'groups') data = groupData.value
+  else data = ciliumData.value // For Cilium
+
   if (!Array.isArray(data)) return []
 
   const set = new Set()
@@ -69,8 +79,10 @@ const fetchData = async (refresh = false) => {
         return acc;
       }, {});
       saData.value = Object.values(grouped);
-    } else {
+    } else if (currentTab.value === 'groups') {
       groupData.value = [...rawData];
+    } else {
+      ciliumData.value = [...rawData];
     }
 
     lastUpdated.value = new Date().toLocaleTimeString();
@@ -87,36 +99,76 @@ const refreshData = () => {
 }
 
 
+// const filteredData = computed(() => {
+//   const query = searchQuery.value.toLowerCase().trim()
+//   const ns = namespaceFilter.value
+//   const isSA = currentTab.value === 'sa'
+//   const data = isSA ? saData.value : groupData.value
+
+//   if (!Array.isArray(data)) return []
+
+//   return data.filter(item => {
+//     // 1. NAMESPACE GATE: Backend now provides exact matches
+//     const itemNs = isSA ? item.namespace : (item.namespaces || [])
+//     const matchesNS = !ns || (isSA ? itemNs === ns : itemNs.includes(ns))
+
+//     if (!matchesNS) return false
+
+//     if (!query) return true
+
+//     // 2. SEARCH GATE: Updated to include role_name and iam_role
+//     if (isSA) {
+//       return (
+//         (item.sa || '').toLowerCase().includes(query) ||
+//         (item.role_name || '').toLowerCase().includes(query) ||
+//         (item.binding_name || '').toLowerCase().includes(query) ||
+//         (item.iam_role || '').toLowerCase().includes(query)
+//       )
+//     } else {
+//       return (
+//         (item.group_name || '').toLowerCase().includes(query) ||
+//         (item.roles || []).some(r => r.toLowerCase().includes(query))
+//       )
+//     }
+//   })
+// })
+
 const filteredData = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
   const ns = namespaceFilter.value
-  const isSA = currentTab.value === 'sa'
-  const data = isSA ? saData.value : groupData.value
+  
+  // Data Source Selection
+  let data = []
+  if (currentTab.value === 'sa') data = saData.value
+  else if (currentTab.value === 'groups') data = groupData.value
+  else data = ciliumData.value
 
   if (!Array.isArray(data)) return []
 
   return data.filter(item => {
-    // 1. NAMESPACE GATE: Backend now provides exact matches
-    const itemNs = isSA ? item.namespace : (item.namespaces || [])
-    const matchesNS = !ns || (isSA ? itemNs === ns : itemNs.includes(ns))
-
+    // 1. NAMESPACE FILTERING
+    // Clusterwide policies (item.is_cluster_wide) should usually show in ALL namespace views
+    const isGlobal = item.is_cluster_wide === true;
+    const itemNs = currentTab.value === 'sa' || currentTab.value === 'cilium' ? item.namespace : (item.namespaces || [])
+    
+    const matchesNS = !ns || isGlobal || (Array.isArray(itemNs) ? itemNs.includes(ns) : itemNs === ns)
     if (!matchesNS) return false
 
     if (!query) return true
 
-    // 2. SEARCH GATE: Updated to include role_name and iam_role
-    if (isSA) {
-      return (
-        (item.sa || '').toLowerCase().includes(query) ||
-        (item.role_name || '').toLowerCase().includes(query) ||
-        (item.binding_name || '').toLowerCase().includes(query) ||
-        (item.iam_role || '').toLowerCase().includes(query)
-      )
+    // 2. SEARCH FILTERING
+    if (currentTab.value === 'sa') {
+      return (item.sa || '').toLowerCase().includes(query) || 
+             (item.role_name || '').toLowerCase().includes(query) ||
+             (item.iam_role || '').toLowerCase().includes(query)
+    } else if (currentTab.value === 'groups') {
+      return (item.group_name || '').toLowerCase().includes(query) || 
+             (item.roles || []).some(r => r.toLowerCase().includes(query))
     } else {
-      return (
-        (item.group_name || '').toLowerCase().includes(query) ||
-        (item.roles || []).some(r => r.toLowerCase().includes(query))
-      )
+      // NEW: Cilium Search logic (Search Name, Kind, or Selector)
+      return (item.name || '').toLowerCase().includes(query) ||
+             (item.kind || '').toLowerCase().includes(query) ||
+             (item.target_selector || '').toLowerCase().includes(query)
     }
   })
 })
@@ -179,6 +231,10 @@ onMounted(() => {
             :class="currentTab === 'groups' ? 'tab-button tab-button-active' : 'tab-button tab-button-inactive'">
             <Users :size="14" class="inline mr-2" /> User Groups
           </button>
+          <button @click="handleTab('cilium')"
+            :class="currentTab === 'cilium' ? 'tab-button tab-button-active' : 'tab-button tab-button-inactive'">
+            <Network :size="14" class="inline mr-2" /> Cilium Policies
+          </button>
         </nav>
       </div>
       <div class="flex items-center gap-4">
@@ -221,9 +277,7 @@ onMounted(() => {
           <div class="spinner"></div>
         </div>
 
-        <!-- <IdentityCard v-for="item in filteredData"
-          :key="currentTab + ':' + (item.sa || item.group_name) + ':' + (item.binding_name || '')" :item="item"
-          :type="currentTab" :isSelected="selectedItem === item" @select="selectedItem = item" /> -->
+
         <IdentityCard v-for="item in filteredData"
           :key="`${currentTab}-${item.sa || item.group_name}-${item.namespace || 'global'}-${item.binding_name || ''}`"
           :item="item" :type="currentTab" :isSelected="selectedItem === item" @select="selectedItem = item" />

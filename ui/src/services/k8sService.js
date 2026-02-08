@@ -3,10 +3,20 @@
  * Handle all network requests here.
  */
 export const k8sService = {
+  //   async fetchTableData(tab, refresh = false) {
+  //     const endpoint = tab === 'sa' ? '/api/table' : '/api/groups';
+  //     // Append the refresh query parameter
+  //     const url = `${endpoint}?refresh=${refresh}`;
+  //     const res = await fetch(url);
+  //     if (!res.ok) throw new Error(`API Error: ${res.status}`);
+  //     return await res.json();
+  //   },
   async fetchTableData(tab, refresh = false) {
-    const endpoint = tab === 'sa' ? '/api/table' : '/api/groups';
-    // Append the refresh query parameter
-    const url = `${endpoint}?refresh=${refresh}`;
+    let endpoint = '/api/table' // default
+    if (tab === 'groups') endpoint = '/api/groups'
+    if (tab === 'cilium') endpoint = '/api/cilium'
+
+    const url = refresh ? `${endpoint}?refresh=true` : endpoint;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`API Error: ${res.status}`);
     return await res.json();
