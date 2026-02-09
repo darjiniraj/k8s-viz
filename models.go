@@ -29,3 +29,13 @@ type GroupSecurityRow struct {
 	Namespaces []string    `json:"namespaces"`
 	AllYAMLs   []YamlBlock `json:"all_yamls"`
 }
+
+type CiliumPolicyRow struct {
+	Name           string `json:"name"`
+	Namespace      string `json:"namespace"` // Empty for Clusterwide
+	Kind           string `json:"kind"`      // CiliumNetworkPolicy or CiliumClusterwideNetworkPolicy
+	IsClusterWide  bool   `json:"is_cluster_wide"`
+	TargetSelector string `json:"target_selector"`
+	Type           string `json:"type"` // Ingress, Egress, or Both
+	Yaml           string `json:"yaml"`
+}

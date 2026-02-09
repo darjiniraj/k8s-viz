@@ -11,6 +11,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -22,22 +23,24 @@ var uiAssets embed.FS
 var appCache = cache.New()
 
 func main() {
-	clientset, err := initK8sClient()
+	// 1. Initialize BOTH clients
+	clientset, dynClient, err := initK8sClients()
 	if err != nil {
 		log.Fatalf("Fatal: Could not connect to Kubernetes: %v", err)
 	}
 
 	service := &K8sService{Clientset: clientset}
 
-	// 2. Set up the Router
 	mux := http.NewServeMux()
 
-	// Routes
+	// --- ROUTES ---
 	mux.HandleFunc("/api/table", getSecurityDataHandler(service))
 	mux.HandleFunc("/api/groups", getGroupSecurityDataHandler(service))
 
-	// 3. Serve the Vue Frontend
-	// This replaces http.Handle("/", http.FileServer(http.Dir(".")))
+	// NEW CILIUM ROUTE: Pass the dynClient here
+	mux.HandleFunc("/api/cilium", getCiliumPoliciesHandler(dynClient))
+
+	// --- FRONTEND ---
 	distFiles, err := fs.Sub(uiAssets, "ui/dist")
 	if err != nil {
 		log.Fatal(err)
@@ -46,6 +49,33 @@ func main() {
 
 	fmt.Println("🚀 K8s-GUARD running at: http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
+}
+
+func getCiliumPoliciesHandler(dynClient dynamic.Interface) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cacheKey := "cilium_data"
+		forceRefresh := r.URL.Query().Get("refresh") == "true"
+
+		// 1. Cache logic
+		if !forceRefresh {
+			if cachedData, found := appCache.Get(cacheKey); found {
+				respondWithJSON(w, cachedData)
+				return
+			}
+		}
+
+		// 2. Call your cilium_service.go logic
+		policies, err := GetCiliumPolicies(dynClient)
+		if err != nil {
+			log.Printf("Cilium Error: %v", err)
+			respondWithJSON(w, []CiliumPolicyRow{}) // Return empty list if error
+			return
+		}
+
+		// 3. Cache and respond
+		appCache.Set(cacheKey, policies, 10*time.Minute)
+		respondWithJSON(w, policies)
+	}
 }
 
 // getSecurityDataHandler processes the Apps/Service Account view.
@@ -115,36 +145,35 @@ func getSecurityDataHandler(s *K8sService) http.HandlerFunc {
 			}
 		}
 
-
 		// 4. Process ClusterRoleBindings
-for _, crb := range crbList.Items {
-    bY := s.MarshalToYaml(crb)
-    rY := cRoleMap[crb.RoleRef.Name]
-    
-    for _, sub := range crb.Subjects {
-        if sub.Kind == "ServiceAccount" {
-            iam := iamMap[sub.Namespace+"/"+sub.Name]
-            if iam == "" {
-                iam = "None"
-            }
+		for _, crb := range crbList.Items {
+			bY := s.MarshalToYaml(crb)
+			rY := cRoleMap[crb.RoleRef.Name]
 
-            // FIX: Use the raw sub.Namespace so the UI filter works.
-            // We add a separate 'IsGlobal' flag for the UI to show the badge.
-            rows = append(rows, SecurityRow{
-                SA:          sub.Name,
-                Namespace:   sub.Namespace, // No more " (Global)" suffix here
-                IAMRole:     iam,
-                BindingType: "ClusterRoleBinding",
-                BindingName: crb.Name,
-                BindingYAML: bY,
-                RoleYAML:    rY,
-                RoleName:    crb.RoleRef.Name,
-                RoleKind:    "ClusterRole", // Add this field to your SecurityRow struct
-                IsGlobal:    true,          // Add this field to your SecurityRow struct
-            })
-        }
-    }
-}
+			for _, sub := range crb.Subjects {
+				if sub.Kind == "ServiceAccount" {
+					iam := iamMap[sub.Namespace+"/"+sub.Name]
+					if iam == "" {
+						iam = "None"
+					}
+
+					// FIX: Use the raw sub.Namespace so the UI filter works.
+					// We add a separate 'IsGlobal' flag for the UI to show the badge.
+					rows = append(rows, SecurityRow{
+						SA:          sub.Name,
+						Namespace:   sub.Namespace, // No more " (Global)" suffix here
+						IAMRole:     iam,
+						BindingType: "ClusterRoleBinding",
+						BindingName: crb.Name,
+						BindingYAML: bY,
+						RoleYAML:    rY,
+						RoleName:    crb.RoleRef.Name,
+						RoleKind:    "ClusterRole", // Add this field to your SecurityRow struct
+						IsGlobal:    true,          // Add this field to your SecurityRow struct
+					})
+				}
+			}
+		}
 		// 2. Before responding, Save to Cache (e.g., 10 minutes)
 		appCache.Set(cacheKey, rows, 10*time.Minute)
 
@@ -223,14 +252,24 @@ func getGroupSecurityDataHandler(s *K8sService) http.HandlerFunc {
 	}
 }
 
-// Helper: Setup K8s Connection
-func initK8sClient() (*kubernetes.Clientset, error) {
+func initK8sClients() (*kubernetes.Clientset, dynamic.Interface, error) {
 	rules := clientcmd.NewDefaultClientConfigLoadingRules()
 	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, &clientcmd.ConfigOverrides{}).ClientConfig()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return kubernetes.NewForConfig(config)
+
+	cs, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dc, err := dynamic.NewForConfig(config) // Create the dynamic client
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return cs, dc, nil
 }
 
 // Helper: Standardized JSON Response

@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @layer components {
+
   /* Main Layout Shell */
   .app-shell {
     @apply flex flex-col h-screen bg-[#0f172a] text-[#94a3b8] font-sans overflow-hidden;
@@ -33,18 +34,13 @@
   }
 
   /* --- FIXED LAYOUT CLASSES --- */
-  
   .main-layout {
-    /* Changed py-8 to pb-8 to keep header flush, added flex */
     @apply flex flex-1 overflow-hidden px-8 pb-8 gap-6 relative;
   }
 
   .identity-list-container {
-    /* Changed from w-1/2 to a fixed width to prevent the 'ghost box' gap */
     @apply w-[480px] shrink-0 overflow-y-auto space-y-3 pr-2;
   }
-
-  /* ---------------------------- */
 
   .loading-overlay {
     @apply absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a]/60 backdrop-blur-md;
@@ -70,24 +66,59 @@
   select:focus {
     @apply ring-2 ring-blue-500/20 border-blue-500/40;
   }
+
+  /* --- NEW YAML & COPY CLASSES --- */
+  .yaml-block {
+    @apply rounded-2xl border border-white/5 bg-slate-950 p-5 shadow-inner relative overflow-hidden;
+  }
+
+  .yaml-code {
+    @apply text-[11px] font-mono whitespace-pre overflow-x-auto;
+  }
+
+  .copy-btn {
+    @apply flex items-center gap-2 px-2 py-1 rounded border border-white/5 text-[9px] font-black text-slate-500 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all active:scale-95;
+  }
 }
 
-/* Custom Scrollbar Styles */
-.custom-scroll::-webkit-scrollbar { width: 5px; }
-.custom-scroll::-webkit-scrollbar-track { background: transparent; }
-.custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-.custom-scroll::-webkit-scrollbar-thumb:hover { background: #475569; }
+/* Custom Scrollbar Styles (Standard CSS) */
+.custom-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 10px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
 
 /* Code block cleanups */
 pre {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
 }
-pre::-webkit-scrollbar { display: none; }
 
 /* Global Animations */
-.animate-in { animation: fadeIn 0.4s ease-out; }
+.animate-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
