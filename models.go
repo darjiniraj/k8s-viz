@@ -39,3 +39,10 @@ type CiliumPolicyRow struct {
 	Type           string `json:"type"` // Ingress, Egress, or Both
 	Yaml           string `json:"yaml"`
 }
+
+type IAMAuditRow struct {
+	IAMRole   string      `json:"iam_role"`
+	Type      string      `json:"type"` // Set to "iam" for UI badges
+	AISummary string      `json:"ai_summary"`
+	AllYAMLs  []YamlBlock `json:"all_yamls"`
+}
