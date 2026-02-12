@@ -1,14 +1,37 @@
-# k8s-viz 🚀
+# k8s-wiz
 
-Kubernetes RBAC visualizer that maps Service Accounts and User Groups to their IAM roles and permissions.
+Kubernetes + IAM security visualizer for:
+- Service Accounts
+- User Groups
+- Cilium Policies
+- IAM to Kubernetes RBAC mapping
 
-## Features
-- **Bulk Fetching**: Optimized to query the K8s API in 5 parallel calls.
-- **IAM Mapping**: Automatically detects EKS IAM role annotations.
-- **YAML Inspector**: View live manifests for Roles and Bindings directly in the UI.
+## Run (Live Mode)
+Requires valid `kubeconfig` (and AWS creds for IAM audit endpoint).
 
-## Getting Started
-1. Ensure your `kubeconfig` is pointing to a cluster.
-2. Run the server:
-   ```bash
-   go run .
+```bash
+go run .
+```
+
+## Run (Demo Mode)
+No Kubernetes cluster and no AWS account required.
+
+```bash
+DEMO_MODE=true go run .
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:DEMO_MODE="true"
+go run .
+```
+
+When Demo Mode is enabled, backend serves mock datasets for:
+- `/api/table`
+- `/api/groups`
+- `/api/cilium`
+- `/api/iam-audit`
+
+The response includes header `X-App-Mode: DEMO`.
+

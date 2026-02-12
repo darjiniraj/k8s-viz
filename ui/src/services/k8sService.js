@@ -12,7 +12,10 @@ export const k8sService = {
   //     return await res.json();
   //   },
 async fetchTableData(tab, refresh = false) {
-    const endpoint = tab === 'cilium' ? '/api/cilium' : (tab === 'groups' ? '/api/groups' : '/api/table');
+    const endpoint =
+      tab === 'cilium' ? '/api/cilium' :
+      (tab === 'groups' ? '/api/groups' :
+      (tab === 'iam' ? '/api/iam-audit' : '/api/table'));
     const url = refresh ? `${endpoint}?refresh=true` : endpoint;
     const res = await fetch(url);
     return await res.json();

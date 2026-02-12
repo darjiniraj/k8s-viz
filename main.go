@@ -8,6 +8,8 @@ import (
 	"k8s-viz/internal/cache"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,15 +23,28 @@ import (
 //go:embed ui/dist/*
 var uiAssets embed.FS
 var appCache = cache.New()
+var mockProvider = NewMockProvider()
+var demoMode bool
 
 func main() {
-	// 1. Initialize BOTH clients
-	clientset, dynClient, err := initK8sClients()
-	if err != nil {
-		log.Fatalf("Fatal: Could not connect to Kubernetes: %v", err)
-	}
+	demoMode = isDemoModeEnabled()
 
-	service := &K8sService{Clientset: clientset}
+	var (
+		service   *K8sService
+		dynClient dynamic.Interface
+		err       error
+	)
+
+	if !demoMode {
+		clientset, dyn, k8sErr := initK8sClients()
+		if k8sErr != nil {
+			log.Printf("Warning: could not connect to Kubernetes, switching to DEMO_MODE: %v", k8sErr)
+			demoMode = true
+		} else {
+			service = &K8sService{Clientset: clientset}
+			dynClient = dyn
+		}
+	}
 
 	mux := http.NewServeMux()
 
@@ -39,6 +54,7 @@ func main() {
 
 	// NEW CILIUM ROUTE: Pass the dynClient here
 	mux.HandleFunc("/api/cilium", getCiliumPoliciesHandler(dynClient))
+	mux.HandleFunc("/api/iam-audit", getIAMAuditHandler(service))
 
 	// --- FRONTEND ---
 	distFiles, err := fs.Sub(uiAssets, "ui/dist")
@@ -47,12 +63,62 @@ func main() {
 	}
 	mux.Handle("/", http.FileServer(http.FS(distFiles)))
 
-	fmt.Println("🚀 K8s-GUARD running at: http://localhost:8080")
+	mode := "LIVE"
+	if demoMode {
+		mode = "DEMO"
+	}
+	fmt.Printf("K8s-GUARD running at: http://localhost:8080 (mode=%s)\n", mode)
 	log.Fatal(http.ListenAndServe(":8080", mux))
+}
+
+func getIAMAuditHandler(s *K8sService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if demoMode {
+			respondWithJSON(w, mockProvider.IAMAuditRows())
+			return
+		}
+		if s == nil {
+			http.Error(w, "kubernetes service is not available", http.StatusServiceUnavailable)
+			return
+		}
+
+		clusterName := r.URL.Query().Get("cluster")
+		region := r.URL.Query().Get("region")
+		forceRefresh := r.URL.Query().Get("refresh") == "true"
+		cacheKey := "iam_audit|" + clusterName + "|" + region
+
+		if !forceRefresh {
+			if cachedData, found := appCache.Get(cacheKey); found {
+				w.Header().Set("X-Cache", "HIT")
+				respondWithJSON(w, cachedData)
+				return
+			}
+		}
+
+		rows, err := BuildIAMRBACMap(r.Context(), s, clusterName, region)
+		if err != nil {
+			log.Printf("IAM audit error: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		appCache.Set(cacheKey, rows, 10*time.Minute)
+		w.Header().Set("X-Cache", "MISS")
+		respondWithJSON(w, rows)
+	}
 }
 
 func getCiliumPoliciesHandler(dynClient dynamic.Interface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if demoMode {
+			respondWithJSON(w, mockProvider.CiliumRows())
+			return
+		}
+		if dynClient == nil {
+			http.Error(w, "kubernetes dynamic client is not available", http.StatusServiceUnavailable)
+			return
+		}
+
 		cacheKey := "cilium_data"
 		forceRefresh := r.URL.Query().Get("refresh") == "true"
 
@@ -81,6 +147,15 @@ func getCiliumPoliciesHandler(dynClient dynamic.Interface) http.HandlerFunc {
 // getSecurityDataHandler processes the Apps/Service Account view.
 func getSecurityDataHandler(s *K8sService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if demoMode {
+			respondWithJSON(w, mockProvider.SecurityRows())
+			return
+		}
+		if s == nil {
+			http.Error(w, "kubernetes service is not available", http.StatusServiceUnavailable)
+			return
+		}
+
 		// 1. Cache Check
 		cacheKey := "sa_data"
 		forceRefresh := r.URL.Query().Get("refresh") == "true"
@@ -185,6 +260,15 @@ func getSecurityDataHandler(s *K8sService) http.HandlerFunc {
 // getGroupSecurityDataHandler processes the User Groups view.
 func getGroupSecurityDataHandler(s *K8sService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if demoMode {
+			respondWithJSON(w, mockProvider.GroupRows())
+			return
+		}
+		if s == nil {
+			http.Error(w, "kubernetes service is not available", http.StatusServiceUnavailable)
+			return
+		}
+
 		// 1. Cache Check
 		cacheKey := "group_data"
 		forceRefresh := r.URL.Query().Get("refresh") == "true"
@@ -272,9 +356,29 @@ func initK8sClients() (*kubernetes.Clientset, dynamic.Interface, error) {
 	return cs, dc, nil
 }
 
+func isDemoModeEnabled() bool {
+	return isTruthy(os.Getenv("DEMO_MODE")) ||
+		isTruthy(os.Getenv("K8S_WIZ_DEMO_MODE")) ||
+		strings.EqualFold(strings.TrimSpace(os.Getenv("K8S_WIZ_MODE")), "demo")
+}
+
+func isTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 // Helper: Standardized JSON Response
 func respondWithJSON(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
+	if demoMode {
+		w.Header().Set("X-App-Mode", "DEMO")
+	} else {
+		w.Header().Set("X-App-Mode", "LIVE")
+	}
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		log.Printf("Error encoding JSON: %v", err)
 	}

@@ -1,5 +1,32 @@
-# Vue 3 + Vite
+# k8s-wiz UI
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Vue 3 + Vite frontend for k8s-wiz.
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+## Run
+
+```bash
+npm install
+npm run dev
+```
+
+## Feature Flags (K8s Resources)
+
+Set these `VITE_` env vars to control which sub-tabs are shown under **K8s Resources**:
+
+- `VITE_ENABLE_SERVICE_ACCOUNT_VIEW` (`true` by default)
+- `VITE_ENABLE_USER_GROUP_VIEW` (`true` by default)
+- `VITE_ENABLE_CILIUM_VIEW` (`true` by default)
+
+Examples:
+
+```bash
+VITE_ENABLE_CILIUM_VIEW=false npm run dev
+```
+
+PowerShell:
+
+```powershell
+$env:VITE_ENABLE_CILIUM_VIEW="false"
+npm run dev
+```
+
