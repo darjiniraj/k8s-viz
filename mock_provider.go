@@ -247,6 +247,7 @@ func (m *MockProvider) IAMAuditRows() []IAMRBACMapRow {
 		{
 			IAMPrincipal:   "arn:aws:iam::111122223333:role/eks-accessentry-platform-admins",
 			AttachmentType: "AccessEntry",
+			AccessPolicies: []string{"AmazonEKSClusterAdminPolicy"},
 			K8sSubject:     "eks:platform-admins",
 			RBACDetails: []IAMRBACDetail{
 				{
@@ -343,6 +344,8 @@ kind: Role
 metadata:
   name: payments-api-reader
   namespace: payments
+  annotations:
+    description: "Read-only access for payments service account"
 rules:
 - apiGroups: [""]
   resources: ["pods","services","configmaps"]

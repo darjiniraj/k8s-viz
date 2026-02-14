@@ -8,6 +8,7 @@ export const FEATURE_FLAGS = {
   ENABLE_SERVICE_ACCOUNT_VIEW: parseBool(import.meta.env.VITE_ENABLE_SERVICE_ACCOUNT_VIEW, true),
   ENABLE_USER_GROUP_VIEW: parseBool(import.meta.env.VITE_ENABLE_USER_GROUP_VIEW, true),
   ENABLE_CILIUM_VIEW: parseBool(import.meta.env.VITE_ENABLE_CILIUM_VIEW, true),
+  SHOW_K8S_RESOURCES: parseBool(import.meta.env.VITE_SHOW_K8S_RESOURCES, false),
 }
 
 export const K8S_RESOURCE_TABS = [
@@ -27,4 +28,3 @@ export const K8S_RESOURCE_TABS = [
     flag: 'ENABLE_CILIUM_VIEW',
   },
 ]
-

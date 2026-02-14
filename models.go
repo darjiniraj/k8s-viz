@@ -59,6 +59,7 @@ type IAMRBACDetail struct {
 type IAMRBACMapRow struct {
 	IAMPrincipal       string          `json:"iam_principal"`
 	AttachmentType     string          `json:"attachment_type"` // AccessEntry, PodIdentity, IRSA
+	AccessPolicies     []string        `json:"access_policies,omitempty"`
 	K8sSubject         string          `json:"k8s_subject"`
 	RBACDetails        []IAMRBACDetail `json:"rbac_details"`
 	SummaryPlaceholder string          `json:"summary_placeholder"`

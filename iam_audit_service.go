@@ -28,6 +28,7 @@ type iamSubjectKey struct {
 type principalAttachment struct {
 	iamPrincipal   string
 	attachmentType string
+	accessPolicies []string
 	k8sSubject     string
 	subjectKey     iamSubjectKey
 }
@@ -112,6 +113,7 @@ func BuildIAMRBACMap(ctx context.Context, svc *K8sService, clusterName, region s
 		row := IAMRBACMapRow{
 			IAMPrincipal:       attachment.iamPrincipal,
 			AttachmentType:     attachment.attachmentType,
+			AccessPolicies:     attachment.accessPolicies,
 			K8sSubject:         attachment.k8sSubject,
 			RBACDetails:        details,
 			SummaryPlaceholder: "",
@@ -160,6 +162,8 @@ func fetchAccessEntryAttachments(ctx context.Context, eksClient *eks.Client, clu
 			if describeOut.AccessEntry == nil {
 				continue
 			}
+
+			policyNames := fetchAccessPolicyNames(ctx, eksClient, clusterName, principalArn)
 			for _, group := range describeOut.AccessEntry.KubernetesGroups {
 				group = strings.TrimSpace(group)
 				if group == "" {
@@ -169,6 +173,7 @@ func fetchAccessEntryAttachments(ctx context.Context, eksClient *eks.Client, clu
 				attachments = append(attachments, principalAttachment{
 					iamPrincipal:   principalArn,
 					attachmentType: "AccessEntry",
+					accessPolicies: policyNames,
 					k8sSubject:     group,
 					subjectKey: iamSubjectKey{
 						kind: "Group",
@@ -267,6 +272,46 @@ func fetchIRSAAttachments(ctx context.Context, svc *K8sService) ([]principalAtta
 	}
 
 	return attachments, nil
+}
+
+func fetchAccessPolicyNames(ctx context.Context, eksClient *eks.Client, clusterName, principalArn string) []string {
+	input := &eks.ListAssociatedAccessPoliciesInput{
+		ClusterName:  aws.String(clusterName),
+		PrincipalArn: aws.String(principalArn),
+		MaxResults:   aws.Int32(100),
+	}
+
+	pager := eks.NewListAssociatedAccessPoliciesPaginator(eksClient, input)
+	names := []string{}
+	seen := map[string]struct{}{}
+
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			log.Printf("list associated access policies failed for %s: %v", principalArn, err)
+			break
+		}
+
+		for _, assoc := range page.AssociatedAccessPolicies {
+			policyArn := strings.TrimSpace(aws.ToString(assoc.PolicyArn))
+			if policyArn == "" {
+				continue
+			}
+			chunks := strings.Split(policyArn, "/")
+			name := strings.TrimSpace(chunks[len(chunks)-1])
+			if name == "" {
+				name = policyArn
+			}
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			names = append(names, name)
+		}
+	}
+
+	sort.Strings(names)
+	return names
 }
 
 func buildRBACDetailsBySubject(ctx context.Context, svc *K8sService, groupTargets, saTargets map[string]struct{}) (map[iamSubjectKey][]IAMRBACDetail, error) {

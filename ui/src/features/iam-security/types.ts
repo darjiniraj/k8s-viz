@@ -15,8 +15,9 @@ export interface IAMRBACDetail {
 export interface IAMSecurityRecord {
   iam_principal: string
   attachment_type: AttachmentType
+  access_policies?: string[]
   k8s_subject: string
-  rbac_details: IAMRBACDetail[]
+  rbac_details?: IAMRBACDetail[] | null
   summary_placeholder: string
 }
 
@@ -26,4 +27,3 @@ export interface IAMSecurityPrincipalGroup {
   attachments: AttachmentType[]
   records: IAMSecurityRecord[]
 }
-

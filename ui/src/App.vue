@@ -21,10 +21,15 @@ import { FEATURE_FLAGS, K8S_RESOURCE_TABS } from './config/features.config'
 const enabledResourceTabs = computed(() =>
   K8S_RESOURCE_TABS.filter((tab) => FEATURE_FLAGS[tab.flag])
 )
+const areK8sResourcesVisible = computed(() =>
+  FEATURE_FLAGS.SHOW_K8S_RESOURCES && enabledResourceTabs.value.length > 0
+)
 
 const getDefaultTab = () => {
   if (window.location.pathname === '/iam-security') return 'iam-security'
-  if (enabledResourceTabs.value.length > 0) return enabledResourceTabs.value[0].key
+  if (FEATURE_FLAGS.SHOW_K8S_RESOURCES && enabledResourceTabs.value.length > 0) {
+    return enabledResourceTabs.value[0].key
+  }
   return 'iam-security'
 }
 
@@ -43,6 +48,7 @@ const lastUpdated = ref(new Date().toLocaleTimeString())
 
 const isIAMTab = computed(() => currentTab.value === 'iam-security')
 const isResourceTab = computed(() =>
+  FEATURE_FLAGS.SHOW_K8S_RESOURCES &&
   enabledResourceTabs.value.some((tab) => tab.key === currentTab.value)
 )
 
@@ -79,6 +85,7 @@ const namespaces = computed(() => {
 })
 
 const handleTab = (tab) => {
+  if (!FEATURE_FLAGS.SHOW_K8S_RESOURCES && tab !== 'iam-security') return
   if (currentTab.value === tab) return
 
   currentTab.value = tab
@@ -282,7 +289,7 @@ onMounted(() => {
           <Fingerprint :size="14" class="mr-2" /> IAM Navigator
         </button>
 
-        <div v-if="enabledResourceTabs.length > 0" class="rounded-xl border border-white/10 overflow-hidden">
+        <div v-if="areK8sResourcesVisible" class="rounded-xl border border-white/10 overflow-hidden">
           <button
             @click="isK8sResourcesExpanded = !isK8sResourcesExpanded"
             class="w-full flex items-center justify-between px-3 py-2 text-[11px] font-black uppercase tracking-wider text-slate-300 bg-slate-900/40"
